@@ -1,0 +1,5 @@
+db.host=localhost
+db.port=3306
+db.user=your_mysql_username
+db.password=your_mysql_password
+db.database=order_management_db

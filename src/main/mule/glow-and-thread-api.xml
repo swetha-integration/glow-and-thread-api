@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="c09c41ea-c661-4196-814a-c364abaebb55" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="57057b6b-70f5-430c-ae1b-043c32d11fa6" >
+		<db:my-sql-connection host="${db.host}" port="${db.port}" user="${db.user}" password="${db.password}" database="${db.database}" />
+	</db:config>
+	<flow name="get-product-by-id-flow" doc:id="7cc25cd4-eb3a-4d04-a18c-98ba17167111" >
+		<http:listener doc:name="Listener" doc:id="9d1fea3d-a54c-41eb-9293-3a67f7759965" config-ref="HTTP_Listener_config" path="/api/products/{productId}" outputMimeType="application/json" allowedMethods="GET">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.productId]" doc:name="Set Variable" doc:id="827c760c-beba-4bf6-963b-1b523e5adbb0" variableName="productId"/>
+		<set-payload value="#[payload]" doc:name="Set Payload" doc:id="8b350424-5402-43c3-8f3e-cd5c665c1a3e" />
+		<db:select doc:name="Select" doc:id="4ceb1d14-2982-4b38-960b-dede3d9b8231" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    product_id,
+    product_name,
+    sku,
+    price,
+    stock_quantity
+FROM products where product_id = :productId;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    productId: attributes.uriParams.productId as Number
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="a597d747-1a90-4658-9766-f95b49d7e769" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="135d5a1c-d8e2-4401-9361-c9b1bc4c2bf8" >
+			<when expression="#[!isEmpty(payload)]">
+				<set-variable value="200" doc:name="Set Variable" doc:id="b507960a-b002-4260-9ac3-643b77a972d8" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="fa8606eb-3d70-49ec-a94e-3c5de37a0bd5" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    error: "PRODUCT_NOT_FOUND",
+    message: "The requested product does not exist.",
+    productId: vars.productId
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set Variable" doc:id="35305d2a-3930-4a5a-921a-2a7ee4851990" variableName="httpStatus"/>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-products-flow" doc:id="feaa8052-2c5e-46ed-8afe-5faaa29f364b" >
+		<http:listener doc:name="Listener" doc:id="10d5ef2e-e912-4529-8e59-efc6d8fc9a4a" config-ref="HTTP_Listener_config" path="/api/products" allowedMethods="GET" outputMimeType="application/json"/>
+		<db:select doc:name="Select" doc:id="d4c86e78-b9d6-464f-b55d-df5b64a7d7d2" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    product_id,
+    product_name,
+    sku,
+    price,
+    stock_quantity
+FROM products;]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="f5ea077c-ade1-4598-a74e-5638e65fb4a3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload	
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<configuration-properties
+    doc:name="Configuration properties"
+    file="config-local.properties" />
+</mule>
